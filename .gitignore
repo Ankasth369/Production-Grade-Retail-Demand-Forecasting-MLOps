@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+artifacts/
+*.joblib
+*.parquet
+
+.env
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+*.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+
+# DVC
+/data/train.csv
+/data/test.csv

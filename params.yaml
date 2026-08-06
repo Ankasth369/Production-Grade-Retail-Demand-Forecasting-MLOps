@@ -1,0 +1,31 @@
+xgboost:
+  max_depth: 8
+  learning_rate: 0.0356
+  n_estimators: 750
+  min_child_weight: 9
+  subsample: 0.799
+  colsample_bytree: 0.776
+  gamma: 3.564
+  reg_alpha: 3.21e-07
+  reg_lambda: 3.12e-07
+  random_state: 42
+
+features:
+  lags: [1, 7, 14, 28, 364]
+  rolling_windows: [7, 28, 90]
+
+holdout_days: 28
+
+drift:
+  psi_threshold: 0.25
+  ks_p_threshold: 0.05
+  monitored_features:
+    - sales_lag_364
+    - sales_rmean_7
+    - sales_rmean_28
+    - month
+    - sales_rmean_90
+
+retrain:
+  promotion_tolerance: 1.05
+  cooldown_hours: 24

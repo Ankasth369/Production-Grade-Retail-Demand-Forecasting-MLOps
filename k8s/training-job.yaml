@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: forecast-retrain
+  namespace: demand-forecast
+spec:
+  schedule: "0 2 * * 0"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: retrain
+              image: demand-forecast-api:latest
+              command: ["python", "-m", "src.pipelines.retrain"]
+              envFrom:
+                - configMapRef:
+                    name: forecast-config
+              volumeMounts:
+                - name: artifacts
+                  mountPath: /app/artifacts
+                - name: data
+                  mountPath: /app/data
+              resources:
+                requests:
+                  memory: "2Gi"
+                  cpu: "1"
+                limits:
+                  memory: "4Gi"
+                  cpu: "2"
+          volumes:
+            - name: artifacts
+              persistentVolumeClaim:
+                claimName: artifacts-pvc
+            - name: data
+              persistentVolumeClaim:
+                claimName: data-pvc

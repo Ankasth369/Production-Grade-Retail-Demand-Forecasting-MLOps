@@ -1,0 +1,39 @@
+stages:
+  train:
+    cmd: python -m src.models.train
+    deps:
+      - data/train.csv
+      - src/config.py
+      - src/data/loader.py
+      - src/features/engineering.py
+      - src/models/train.py
+    params:
+      - xgboost
+      - features
+      - holdout_days
+    outs:
+      - artifacts/model.joblib
+      - artifacts/category_mappings.json
+      - artifacts/serving_table.parquet
+    metrics:
+      - artifacts/metrics.json:
+          cache: false
+
+  monitor:
+    cmd: python -m src.monitoring.evidently_monitor
+    deps:
+      - artifacts/model.joblib
+      - artifacts/serving_table.parquet
+      - src/monitoring/evidently_monitor.py
+      - src/monitoring/drift.py
+      - src/monitoring/monitor.py
+    params:
+      - drift
+    outs:
+      - artifacts/evidently_reports:
+          cache: false
+          persist: true
+    plots:
+      - artifacts/drift_logs:
+          cache: false
+          persist: true

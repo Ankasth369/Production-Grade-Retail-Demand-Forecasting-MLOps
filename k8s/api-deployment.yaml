@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forecast-api
+  namespace: demand-forecast
+  labels:
+    app: forecast-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: forecast-api
+  template:
+    metadata:
+      labels:
+        app: forecast-api
+    spec:
+      containers:
+        - name: api
+          image: demand-forecast-api:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: forecast-config
+          volumeMounts:
+            - name: artifacts
+              mountPath: /app/artifacts
+            - name: data
+              mountPath: /app/data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: artifacts-pvc
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-pvc

@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forecast-dashboard
+  namespace: demand-forecast
+  labels:
+    app: forecast-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forecast-dashboard
+  template:
+    metadata:
+      labels:
+        app: forecast-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: demand-forecast-dashboard:latest
+          ports:
+            - containerPort: 8501
+          envFrom:
+            - configMapRef:
+                name: forecast-config
+          volumeMounts:
+            - name: artifacts
+              mountPath: /app/artifacts
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: artifacts-pvc

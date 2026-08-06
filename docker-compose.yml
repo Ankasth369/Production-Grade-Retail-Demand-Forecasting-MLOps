@@ -1,0 +1,45 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./artifacts:/app/artifacts
+    environment:
+      - API_URL=http://api:8000
+      - ARTIFACTS_DIR=/app/artifacts
+      - PYTHONPATH=/app
+    depends_on:
+      - api
+
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./data:/app/data
+    environment:
+      - PYTHONPATH=/app
+    command: ["python", "-m", "src.models.train"]
+    profiles:
+      - train
