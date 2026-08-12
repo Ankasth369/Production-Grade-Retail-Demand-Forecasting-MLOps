@@ -1,10 +1,14 @@
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
 
 from app.main import app
+from src.config import API_KEY
+
+AUTH_HEADERS = {"X-API-Key": API_KEY}
 
 
 @pytest.fixture
@@ -52,6 +56,7 @@ def test_predict_success(client):
     resp = client.post(
         "/predict",
         json={"store_id": 1, "item_id": 1, "date": "2017-12-31"},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -64,6 +69,7 @@ def test_predict_unknown_store(client):
     resp = client.post(
         "/predict",
         json={"store_id": 999, "item_id": 1, "date": "2017-12-31"},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 400
 
@@ -72,11 +78,27 @@ def test_predict_unknown_item(client):
     resp = client.post(
         "/predict",
         json={"store_id": 1, "item_id": 999, "date": "2017-12-31"},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 400
 
 
+def test_predict_requires_api_key(client):
+    resp = client.post(
+        "/predict",
+        json={"store_id": 1, "item_id": 1, "date": "2017-12-31"},
+    )
+    assert resp.status_code == 401
+
+
 def test_reload(client):
-    resp = client.post("/reload")
+    resp = client.post("/reload", headers=AUTH_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["status"] == "reloaded"
+
+
+def test_metrics_endpoint(client):
+    client.get("/health")
+    resp = client.get("/metrics")
+    assert resp.status_code == 200
+    assert b"api_requests_total" in resp.content

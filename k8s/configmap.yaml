@@ -7,3 +7,4 @@ data:
   API_URL: "http://forecast-api:8000"
   ARTIFACTS_DIR: "/app/artifacts"
   PYTHONPATH: "/app"
+  RATE_LIMIT: "60/minute"

@@ -1,10 +1,33 @@
 import json
+import logging
 import shutil
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
-from src.config import ARTIFACTS_DIR, PROMOTION_TOLERANCE, RETRAIN_COOLDOWN_HOURS
+from src.config import (
+    ARTIFACTS_DIR,
+    MLFLOW_MODEL_NAME,
+    MLFLOW_PRODUCTION_ALIAS,
+    MLFLOW_TRACKING_URI,
+    PROMOTION_TOLERANCE,
+    RETRAIN_COOLDOWN_HOURS,
+)
 from src.models.train import train_model
+
+logger = logging.getLogger(__name__)
+
+
+def _promote_mlflow_alias(version):
+    if version is None:
+        return
+    try:
+        import mlflow
+        from mlflow.tracking import MlflowClient
+
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        client = MlflowClient()
+        client.set_registered_model_alias(MLFLOW_MODEL_NAME, MLFLOW_PRODUCTION_ALIAS, version)
+    except Exception as e:
+        logger.warning("Failed to update MLflow production alias: %s", e)
 
 
 def _last_retrain_time():
@@ -66,6 +89,8 @@ def retrain_pipeline(force=False):
     for f in candidate_dir.iterdir():
         shutil.copy2(f, ARTIFACTS_DIR / f.name)
     shutil.rmtree(candidate_dir)
+
+    _promote_mlflow_alias(candidate_metrics.get("mlflow_model_version"))
 
     _save_retrain_meta("promoted", candidate_metrics)
     return {

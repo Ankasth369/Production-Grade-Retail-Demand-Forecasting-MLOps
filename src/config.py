@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -44,3 +45,15 @@ MODEL_PATH = ARTIFACTS_DIR / "model.joblib"
 CATEGORY_MAP_PATH = ARTIFACTS_DIR / "category_mappings.json"
 SERVING_TABLE_PATH = ARTIFACTS_DIR / "serving_table.parquet"
 METRICS_PATH = ARTIFACTS_DIR / "metrics.json"
+
+# MLflow
+MLFLOW_TRACKING_URI = os.environ.get(
+    "MLFLOW_TRACKING_URI", f"sqlite:///{(ARTIFACTS_DIR / 'mlflow.db').as_posix()}"
+)
+MLFLOW_EXPERIMENT_NAME = "demand-forecast"
+MLFLOW_MODEL_NAME = "demand-forecast-xgboost"
+MLFLOW_PRODUCTION_ALIAS = "production"
+
+# API security
+API_KEY = os.environ.get("API_KEY", "dev-local-key-change-in-prod")
+RATE_LIMIT = os.environ.get("RATE_LIMIT", "60/minute")

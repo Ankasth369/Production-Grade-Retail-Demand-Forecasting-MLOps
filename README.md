@@ -6,6 +6,7 @@
 [![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange.svg)](https://xgboost.readthedocs.io)
 [![DVC](https://img.shields.io/badge/DVC-3.67+-blueviolet.svg)](https://dvc.org)
 [![Evidently](https://img.shields.io/badge/Evidently-0.7+-red.svg)](https://www.evidentlyai.com)
+[![MLflow](https://img.shields.io/badge/MLflow-2.15+-0194E2.svg)](https://mlflow.org)
 
 End-to-end demand forecasting system with drift detection, automated retraining, and a serving API — built as a production-grade MLOps pipeline.
 
@@ -22,6 +23,10 @@ End-to-end demand forecasting system with drift detection, automated retraining,
 - **Docker Compose** for local orchestration, **Kubernetes** manifests for deployment
 - **DVC** for data/artifact versioning and reproducible pipelines
 - **Evidently AI** for interactive drift reports alongside custom PSI/KS
+- **MLflow** experiment tracking and model registry with alias-based promotion
+- **Pandera** schema validation on raw data before it reaches the pipeline
+- **Structured JSON logging + Prometheus `/metrics`** for observability
+- **API key auth + rate limiting** on the serving API
 - **CI/CD** via GitHub Actions: lint, test, build, push, deploy
 
 ---
@@ -40,18 +45,19 @@ End-to-end demand forecasting system with drift detection, automated retraining,
                      │
 ┌────────────────────▼───────────────────────────────────────────────┐
 │                      TRAINING PIPELINE                             │
-│  XGBoost (tuned) ──► walk-forward eval ──► artifacts/              │
-│                      (28-day holdout)       ├─ model.joblib        │
-│                                             ├─ category_mappings   │
-│                                             ├─ serving_table       │
-│                                             └─ metrics.json        │
+│  Pandera schema check ──► XGBoost (tuned) ──► walk-forward eval    │
+│                                                (28-day holdout)     │
+│  ──► MLflow run (params/metrics/model) ──► register model version  │
+│  ──► artifacts/  ├─ model.joblib  ├─ category_mappings             │
+│                   ├─ serving_table └─ metrics.json                 │
 └────────────────────┬───────────────────────────────────────────────┘
                      │
 ┌────────────────────▼───────────────────────────────────────────────┐
 │                      SERVING LAYER                                 │
-│  FastAPI ──► /predict  (store_id, item_id, date → forecast)        │
+│  FastAPI (API key auth + rate limit) ──► /predict, /reload         │
 │          ──► /health   (model status + metrics)                    │
-│          ──► /reload   (hot-swap model without restart)            │
+│          ──► /metrics  (Prometheus counters/histograms)            │
+│          + structured JSON request logging                         │
 └────────────────────┬───────────────────────────────────────────────┘
                      │
 ┌────────────────────▼───────────────────────────────────────────────┐
@@ -61,7 +67,9 @@ End-to-end demand forecasting system with drift detection, automated retraining,
 │                     │                      ├─ train candidate      │
 │                     │                      ├─ promotion gate       │
 │                     │                      │  (SMAPE ≤ old × 1.05)│
-│                     │                      └─ 24h cooldown         │
+│                     │                      ├─ 24h cooldown         │
+│                     │                      └─ MLflow "production"  │
+│                     │                         alias on promotion   │
 │                     └─ log to drift_logs/                          │
 └────────────────────┬───────────────────────────────────────────────┘
                      │
@@ -107,10 +115,13 @@ The model relies on lagged history and seasonality, not store/item identity (ran
 ```
 ├── src/                         # Core Python package
 │   ├── config.py                # Paths, feature list, tuned params, thresholds
-│   ├── data/loader.py           # Load and validate train.csv
+│   ├── logging_config.py        # Structured JSON logging setup
+│   ├── data/
+│   │   ├── loader.py            # Load + Pandera-validate train.csv
+│   │   └── schema.py            # Pandera schema for raw sales data
 │   ├── features/engineering.py  # build_features() with persisted category mappings
 │   ├── models/
-│   │   ├── train.py             # Train XGBoost, evaluate, save artifacts
+│   │   ├── train.py             # Train XGBoost, log/register to MLflow, save artifacts
 │   │   └── registry.py          # Load model + serving table for the API
 │   ├── monitoring/
 │   │   ├── drift.py             # PSI and KS test implementations
@@ -118,11 +129,11 @@ The model relies on lagged history and seasonality, not store/item identity (ran
 │   │   ├── monitor.py           # monitor_once() + monitor_full() with Evidently
 │   │   └── evidently_monitor.py # Evidently AI HTML drift reports
 │   └── pipelines/
-│       └── retrain.py           # Retraining with promotion gate + cooldown
-├── app/main.py                  # FastAPI: /predict, /health, /reload
+│       └── retrain.py           # Retraining with promotion gate + MLflow alias promotion
+├── app/main.py                  # FastAPI: /predict, /health, /reload, /metrics (API key + rate limit)
 ├── dashboard/app.py             # Streamlit: 5-page interactive dashboard
 ├── scripts/simulate_drift.py   # Inject synthetic drift (3 modes)
-├── tests/                       # 19 tests: features, drift, API, Evidently
+├── tests/                       # 25 tests: features, drift, API, Evidently, data validation
 ├── notebooks/                   # EDA, model comparison, tuning, SHAP
 ├── k8s/                         # Kubernetes: deployments, services, CronJob, ingress
 ├── .github/workflows/           # CI (lint + test) and CD (build + deploy to K8s)
@@ -130,7 +141,7 @@ The model relies on lagged history and seasonality, not store/item identity (ran
 ├── params.yaml                  # DVC-tracked parameters
 ├── Dockerfile                   # API container
 ├── Dockerfile.dashboard         # Dashboard container
-└── docker-compose.yml           # Local orchestration
+└── docker-compose.yml           # Local orchestration (api, dashboard, training, mlflow)
 ```
 
 ---
@@ -165,9 +176,12 @@ streamlit run dashboard/app.py
 
 ### 5. Test a prediction
 
+`/predict` and `/reload` require an API key (`X-API-Key` header). The default dev key is `dev-local-key-change-in-prod` — override it by setting the `API_KEY` environment variable before starting the API.
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: dev-local-key-change-in-prod" \
   -d '{"store_id": 1, "item_id": 1, "date": "2018-01-15"}'
 ```
 
@@ -175,6 +189,14 @@ Response:
 ```json
 {"store_id": 1, "item_id": 1, "date": "2018-01-15", "forecast": 12.8}
 ```
+
+### 6. Browse experiments in MLflow
+
+```bash
+mlflow ui --backend-store-uri sqlite:///artifacts/mlflow.db
+```
+
+Opens at http://localhost:5000 — shows every training run's params/metrics and the registered model's version history.
 
 ---
 
@@ -190,6 +212,24 @@ Response:
 | **Identity** | `store_code`, `item_code` | Persisted integer mappings (no train/serve skew) |
 
 Category mappings are saved as JSON at training time and loaded identically at serving time — fixing the `.cat.codes` production skew issue common in notebook-to-production transitions.
+
+---
+
+## Data Validation
+
+Raw data is validated against a [Pandera](https://pandera.readthedocs.io) schema before it enters the pipeline, catching bad inputs before they silently corrupt features or model training.
+
+```python
+# src/data/schema.py
+RawSalesSchema = DataFrameSchema({
+    "date": Column(pa.DateTime, nullable=False),
+    "store": Column(int, Check.greater_than(0), nullable=False),
+    "item": Column(int, Check.greater_than(0), nullable=False),
+    "sales": Column(int, Check.greater_than_or_equal_to(0), nullable=False),
+})
+```
+
+`load_train_data()` runs this check by default and raises `SchemaErrors` with a full report of every violating row if validation fails, instead of letting bad data flow silently into feature engineering.
 
 ---
 
@@ -239,6 +279,27 @@ python -m src.pipelines.retrain --force
 
 ---
 
+## Experiment Tracking & Model Registry (MLflow)
+
+Every training run — including retraining candidates — is logged to [MLflow](https://mlflow.org): hyperparameters, evaluation metrics, the model artifact, and category mappings. Each run also registers a new version of the `demand-forecast-xgboost` model.
+
+```bash
+# View all runs and registered model versions
+mlflow ui --backend-store-uri sqlite:///artifacts/mlflow.db
+```
+
+- **Tracking store**: SQLite at `artifacts/mlflow.db` by default (override with `MLFLOW_TRACKING_URI`, e.g. to point at the `mlflow` service in Docker Compose)
+- **Model registry**: instead of the deprecated stage system, promotion uses an **alias** — `retrain_pipeline()` moves the `production` alias onto a new version only after it clears the promotion gate (SMAPE ≤ old × 1.05). Rejected candidates stay registered but never receive the alias.
+- **Fallback**: if MLflow is unreachable, training still completes — the run is skipped and `metrics.json` records `mlflow_error` instead of failing the pipeline.
+
+```python
+from mlflow.tracking import MlflowClient
+client = MlflowClient()
+client.get_model_version_by_alias("demand-forecast-xgboost", "production")
+```
+
+---
+
 ## Dashboard
 
 Interactive Streamlit dashboard with 5 pages:
@@ -255,11 +316,35 @@ Interactive Streamlit dashboard with 5 pages:
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check with model status and metrics |
-| `/predict` | POST | Forecast for a store/item/date |
-| `/reload` | POST | Hot-reload model after retraining |
+| Endpoint | Method | Auth | Description |
+|----------|--------|:----:|-------------|
+| `/health` | GET | — | Health check with model status and metrics |
+| `/metrics` | GET | — | Prometheus metrics (request counts, latency, predictions) |
+| `/predict` | POST | ✅ | Forecast for a store/item/date |
+| `/reload` | POST | ✅ | Hot-reload model after retraining |
+
+`/predict` and `/reload` are also rate-limited (default `60/minute` per client, configurable via `RATE_LIMIT`).
+
+---
+
+## Observability
+
+- **Structured JSON logging** (`src/logging_config.py`) — every request logs method, path, status code, latency, and client IP as a single JSON line, ready for ingestion by any log aggregator (ELK, Loki, CloudWatch).
+- **Prometheus metrics** at `/metrics` — request counts by method/path/status, a request latency histogram, and a running count of predictions served. Point a Prometheus scrape config at the endpoint and build Grafana dashboards on top.
+
+```
+api_requests_total{method="POST",path="/predict",status_code="200"} 42.0
+api_request_duration_seconds_bucket{method="POST",path="/predict",le="0.1"} 40.0
+predictions_total 42.0
+```
+
+---
+
+## API Security
+
+- **API key auth** — `/predict` and `/reload` require an `X-API-Key` header matching the `API_KEY` environment variable (defaults to a dev key locally; set a real secret in production).
+- **Rate limiting** ([slowapi](https://github.com/laurentS/slowapi)) — per-client request caps on the same two endpoints, configurable via `RATE_LIMIT` (default `60/minute`), returning `429` once exceeded.
+- `/health` and `/metrics` stay open (unauthenticated) so container orchestrators and monitoring scrapers can reach them without credentials.
 
 ---
 
@@ -280,12 +365,19 @@ docker compose --profile train run training
 |---------|-----|
 | API | http://localhost:8000 |
 | Dashboard | http://localhost:8501 |
+| MLflow UI | http://localhost:5000 |
 
 ---
 
 ## Kubernetes
 
 ```bash
+# Set a real API key before deploying (defaults to a placeholder otherwise)
+kubectl create secret generic forecast-secrets \
+  --namespace demand-forecast \
+  --from-literal=API_KEY=$(openssl rand -hex 32) \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl apply -f k8s/
 kubectl get all -n demand-forecast
 ```
@@ -295,7 +387,9 @@ kubectl get all -n demand-forecast
 | `forecast-api` Deployment | 2 replicas with liveness/readiness probes |
 | `forecast-dashboard` Deployment | Streamlit UI |
 | `forecast-retrain` CronJob | Weekly retraining (Sundays 2 AM) |
-| `artifacts-pvc` / `data-pvc` | Persistent storage for model artifacts and data |
+| `forecast-config` ConfigMap | Non-secret env vars (API_URL, ARTIFACTS_DIR, RATE_LIMIT) |
+| `forecast-secrets` Secret | `API_KEY` — replace the placeholder before deploying to a real cluster |
+| `artifacts-pvc` / `data-pvc` | Persistent storage for model artifacts and data (MLflow's SQLite store and run artifacts live here too, so tracking history survives pod restarts) |
 | `forecast-ingress` | Nginx ingress routing (`/api` → API, `/` → dashboard) |
 
 ---
@@ -385,8 +479,9 @@ pytest tests/ -v
 |-----------|-----------------|
 | `test_features.py` | Lag features don't leak future data; category mappings are deterministic |
 | `test_drift.py` | PSI returns ~0 for identical distributions, >0.25 for shifted ones |
-| `test_api.py` | `/predict` returns 200 with numeric forecast; unknown store/item returns 400 |
+| `test_api.py` | `/predict` returns 200 with numeric forecast; unknown store/item returns 400; missing API key returns 401; `/metrics` exposes Prometheus counters |
 | `test_evidently.py` | Evidently drift reports detect drift correctly and save HTML + JSON artifacts |
+| `test_data_validation.py` | Pandera schema accepts valid rows and rejects negative sales, invalid IDs, and null dates |
 
 ---
 
@@ -414,6 +509,10 @@ pytest tests/ -v
 | Dashboard | Streamlit + Plotly |
 | Drift Detection | PSI + KS (scipy) + Evidently AI |
 | Data Versioning | DVC |
+| Data Validation | Pandera |
+| Experiment Tracking / Registry | MLflow |
+| Observability | Structured JSON logs + Prometheus |
+| API Security | API key auth + slowapi rate limiting |
 | Explainability | SHAP |
 | Containers | Docker + Docker Compose |
 | Orchestration | Kubernetes |

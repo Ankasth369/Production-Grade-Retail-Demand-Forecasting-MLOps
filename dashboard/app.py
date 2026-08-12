@@ -23,6 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DRIFT_LOG_DIR = ARTIFACTS_DIR / "drift_logs"
 EVIDENTLY_REPORTS_DIR = ARTIFACTS_DIR / "evidently_reports"
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_KEY = os.getenv("API_KEY", "dev-local-key-change-in-prod")
+API_HEADERS = {"X-API-Key": API_KEY}
 
 st.set_page_config(
     page_title="Demand Forecast MLOps",
@@ -125,6 +127,7 @@ def api_predict(store_id, item_id, date_str):
         resp = requests.post(
             f"{API_URL}/predict",
             json={"store_id": store_id, "item_id": item_id, "date": date_str},
+            headers=API_HEADERS,
             timeout=10,
         )
         if resp.status_code == 200:
@@ -803,7 +806,7 @@ elif page == "⚙️ Model & System":
         with c1:
             if st.button("Reload Model", type="primary", use_container_width=True):
                 try:
-                    resp = requests.post(f"{API_URL}/reload", timeout=10)
+                    resp = requests.post(f"{API_URL}/reload", headers=API_HEADERS, timeout=10)
                     if resp.status_code == 200:
                         st.success("Model reloaded")
                         st.json(resp.json())

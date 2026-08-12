@@ -23,6 +23,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: forecast-config
+            - secretRef:
+                name: forecast-secrets
           volumeMounts:
             - name: artifacts
               mountPath: /app/artifacts

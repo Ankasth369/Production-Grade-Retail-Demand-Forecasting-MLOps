@@ -25,3 +25,8 @@ Thumbs.db
 # DVC
 /data/train.csv
 /data/test.csv
+
+# MLflow
+mlruns/
+mlflow_data/
+*.db

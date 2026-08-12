@@ -1,16 +1,28 @@
 import json
+from pathlib import Path
+
 import joblib
+import mlflow
+import mlflow.xgboost
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from xgboost import XGBRegressor
 
 from src.config import (
-    FEATURES, TARGET, XGBOOST_PARAMS, HOLDOUT_DAYS, ARTIFACTS_DIR,
+    ARTIFACTS_DIR,
+    FEATURES,
+    HOLDOUT_DAYS,
+    MLFLOW_EXPERIMENT_NAME,
+    MLFLOW_MODEL_NAME,
+    MLFLOW_TRACKING_URI,
+    TARGET,
+    XGBOOST_PARAMS,
 )
 from src.data.loader import load_train_data
 from src.features.engineering import (
-    build_features, build_category_mappings, save_category_mappings,
+    build_category_mappings,
+    build_features,
+    save_category_mappings,
 )
 
 
@@ -28,7 +40,7 @@ def rmse(y_true, y_pred):
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
-def train_model(df=None, output_dir=None):
+def train_model(df=None, output_dir=None, register=True):
     output_dir = Path(output_dir or ARTIFACTS_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -57,6 +69,31 @@ def train_model(df=None, output_dir=None):
         "holdout_rows": len(holdout),
         "cutoff_date": str(cutoff.date()),
     }
+
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+    try:
+        with mlflow.start_run() as run:
+            mlflow.log_params(XGBOOST_PARAMS)
+            mlflow.log_metrics({
+                "smape": metrics["smape"],
+                "mae": metrics["mae"],
+                "rmse": metrics["rmse"],
+                "train_rows": metrics["train_rows"],
+                "holdout_rows": metrics["holdout_rows"],
+            })
+            mlflow.xgboost.log_model(model, name="model")
+            mlflow.log_artifact(str(output_dir / "category_mappings.json"))
+
+            metrics["mlflow_run_id"] = run.info.run_id
+
+            if register:
+                model_uri = f"runs:/{run.info.run_id}/model"
+                mv = mlflow.register_model(model_uri, MLFLOW_MODEL_NAME)
+                metrics["mlflow_model_version"] = mv.version
+    except Exception as e:
+        metrics["mlflow_error"] = str(e)
 
     joblib.dump(model, output_dir / "model.joblib")
     with open(output_dir / "metrics.json", "w") as f:

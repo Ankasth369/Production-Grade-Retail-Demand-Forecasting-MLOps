@@ -17,3 +17,7 @@ requests>=2.31
 pytest>=7.4
 httpx>=0.25
 ruff>=0.1
+mlflow>=2.15
+pandera>=0.20
+prometheus-client>=0.20
+slowapi>=0.1.9
