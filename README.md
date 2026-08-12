@@ -25,7 +25,7 @@ End-to-end demand forecasting system with drift detection, automated retraining,
 - **Evidently AI** for interactive drift reports alongside custom PSI/KS
 - **MLflow** experiment tracking and model registry with alias-based promotion
 - **Pandera** schema validation on raw data before it reaches the pipeline
-- **Structured JSON logging + Prometheus `/metrics`** for observability
+- **Prometheus + Grafana** — live dashboard for API request rate, latency, and predictions served
 - **API key auth + rate limiting** on the serving API
 - **CI/CD** via GitHub Actions: lint, test, build, push, deploy
 
@@ -137,11 +137,14 @@ The model relies on lagged history and seasonality, not store/item identity (ran
 ├── notebooks/                   # EDA, model comparison, tuning, SHAP
 ├── k8s/                         # Kubernetes: deployments, services, CronJob, ingress
 ├── .github/workflows/           # CI (lint + test) and CD (build + deploy to K8s)
+├── monitoring/
+│   ├── prometheus/prometheus.yml       # Scrape config targeting the API
+│   └── grafana/                        # Auto-provisioned datasource + dashboard
 ├── dvc.yaml                     # DVC pipeline definition
 ├── params.yaml                  # DVC-tracked parameters
 ├── Dockerfile                   # API container
 ├── Dockerfile.dashboard         # Dashboard container
-└── docker-compose.yml           # Local orchestration (api, dashboard, training, mlflow)
+└── docker-compose.yml           # Local orchestration (api, dashboard, training, mlflow, prometheus, grafana)
 ```
 
 ---
@@ -330,13 +333,25 @@ Interactive Streamlit dashboard with 5 pages:
 ## Observability
 
 - **Structured JSON logging** (`src/logging_config.py`) — every request logs method, path, status code, latency, and client IP as a single JSON line, ready for ingestion by any log aggregator (ELK, Loki, CloudWatch).
-- **Prometheus metrics** at `/metrics` — request counts by method/path/status, a request latency histogram, and a running count of predictions served. Point a Prometheus scrape config at the endpoint and build Grafana dashboards on top.
+- **Prometheus metrics** at `/metrics` — request counts by method/path/status, a request latency histogram, and a running count of predictions served.
+- **Prometheus server + Grafana dashboard** — `docker-compose.yml` runs a Prometheus container scraping the API every 15s (`monitoring/prometheus/prometheus.yml`) and a Grafana container that auto-provisions the Prometheus datasource and a pre-built dashboard (`monitoring/grafana/`) on startup — no manual setup required.
 
 ```
 api_requests_total{method="POST",path="/predict",status_code="200"} 42.0
 api_request_duration_seconds_bucket{method="POST",path="/predict",le="0.1"} 40.0
 predictions_total 42.0
 ```
+
+### Dashboard panels
+
+| Panel | Query |
+|-------|-------|
+| Request Rate by Path | `sum(rate(api_requests_total[1m])) by (path)` |
+| Request Latency (p95) | `histogram_quantile(0.95, sum(rate(api_request_duration_seconds_bucket[5m])) by (le, path))` |
+| Response Status Codes | `sum(rate(api_requests_total[1m])) by (status_code)` |
+| Predictions Served | `predictions_total` |
+
+Grafana is at http://localhost:3000 (anonymous viewer access enabled; admin login is `admin` / `admin`). Prometheus's own UI is at http://localhost:9090 for ad-hoc PromQL queries.
 
 ---
 
@@ -366,6 +381,8 @@ docker compose --profile train run training
 | API | http://localhost:8000 |
 | Dashboard | http://localhost:8501 |
 | MLflow UI | http://localhost:5000 |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 |
 
 ---
 
@@ -511,7 +528,7 @@ pytest tests/ -v
 | Data Versioning | DVC |
 | Data Validation | Pandera |
 | Experiment Tracking / Registry | MLflow |
-| Observability | Structured JSON logs + Prometheus |
+| Observability | Structured JSON logs + Prometheus + Grafana |
 | API Security | API key auth + slowapi rate limiting |
 | Explainability | SHAP |
 | Containers | Docker + Docker Compose |
