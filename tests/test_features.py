@@ -1,7 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
-from src.features.engineering import build_features, build_category_mappings
+
+from src.features.engineering import build_category_mappings, build_features
 
 
 @pytest.fixture
@@ -11,12 +12,14 @@ def sample_df():
     for store in [1, 2]:
         for item in [1, 2]:
             for date in dates:
-                rows.append({
-                    "date": date,
-                    "store": store,
-                    "item": item,
-                    "sales": np.random.randint(10, 100),
-                })
+                rows.append(
+                    {
+                        "date": date,
+                        "store": store,
+                        "item": item,
+                        "sales": np.random.randint(10, 100),
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -59,6 +62,7 @@ def test_category_mappings_deterministic(sample_df):
 
 def test_features_columns_present(sample_df):
     from src.config import FEATURES
+
     mappings = build_category_mappings(sample_df)
     df = build_features(sample_df, mappings)
     for feat in FEATURES:

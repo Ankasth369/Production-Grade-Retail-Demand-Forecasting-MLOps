@@ -111,7 +111,9 @@ def reload(request: Request, api_key: str = Depends(verify_api_key)):
 
 @app.post("/predict", response_model=PredictResponse)
 @limiter.limit(RATE_LIMIT)
-def predict(request: Request, req: PredictRequest, api_key: str = Depends(verify_api_key)):
+def predict(
+    request: Request, req: PredictRequest, api_key: str = Depends(verify_api_key)
+):
     if not registry.is_loaded():
         raise HTTPException(503, "Model not loaded")
 
@@ -133,8 +135,12 @@ def predict(request: Request, req: PredictRequest, api_key: str = Depends(verify
         )
 
     new_row = pd.DataFrame(
-        {"date": [target_date], "store": [req.store_id],
-         "item": [req.item_id], "sales": [np.nan]}
+        {
+            "date": [target_date],
+            "store": [req.store_id],
+            "item": [req.item_id],
+            "sales": [np.nan],
+        }
     )
     series = pd.concat([series, new_row], ignore_index=True)
     series = build_features(series, mappings)

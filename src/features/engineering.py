@@ -1,6 +1,6 @@
 import json
-import pandas as pd
 from pathlib import Path
+
 from src.config import CATEGORY_MAP_PATH
 
 
@@ -14,8 +14,7 @@ def save_category_mappings(mappings, path=None):
     path = Path(path or CATEGORY_MAP_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     serializable = {
-        k: {str(kk): vv for kk, vv in v.items()}
-        for k, v in mappings.items()
+        k: {str(kk): vv for kk, vv in v.items()} for k, v in mappings.items()
     }
     with open(path, "w") as f:
         json.dump(serializable, f, indent=2)
@@ -53,13 +52,11 @@ def build_features(df, category_mappings=None):
 
     sh = g["sales"].shift(1)
     for w in [7, 28, 90]:
-        d[f"sales_rmean_{w}"] = (
-            sh.groupby([d["store"], d["item"]])
-            .transform(lambda s: s.rolling(w).mean())
+        d[f"sales_rmean_{w}"] = sh.groupby([d["store"], d["item"]]).transform(
+            lambda s, w=w: s.rolling(w).mean()
         )
-        d[f"sales_rstd_{w}"] = (
-            sh.groupby([d["store"], d["item"]])
-            .transform(lambda s: s.rolling(w).std())
+        d[f"sales_rstd_{w}"] = sh.groupby([d["store"], d["item"]]).transform(
+            lambda s, w=w: s.rolling(w).std()
         )
 
     return d

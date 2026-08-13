@@ -76,13 +76,15 @@ def train_model(df=None, output_dir=None, register=True):
     try:
         with mlflow.start_run() as run:
             mlflow.log_params(XGBOOST_PARAMS)
-            mlflow.log_metrics({
-                "smape": metrics["smape"],
-                "mae": metrics["mae"],
-                "rmse": metrics["rmse"],
-                "train_rows": metrics["train_rows"],
-                "holdout_rows": metrics["holdout_rows"],
-            })
+            mlflow.log_metrics(
+                {
+                    "smape": metrics["smape"],
+                    "mae": metrics["mae"],
+                    "rmse": metrics["rmse"],
+                    "train_rows": metrics["train_rows"],
+                    "holdout_rows": metrics["holdout_rows"],
+                }
+            )
             mlflow.xgboost.log_model(model, name="model")
             mlflow.log_artifact(str(output_dir / "category_mappings.json"))
 
@@ -92,7 +94,7 @@ def train_model(df=None, output_dir=None, register=True):
                 model_uri = f"runs:/{run.info.run_id}/model"
                 mv = mlflow.register_model(model_uri, MLFLOW_MODEL_NAME)
                 metrics["mlflow_model_version"] = mv.version
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- MLflow is best-effort; training must still complete
         metrics["mlflow_error"] = str(e)
 
     joblib.dump(model, output_dir / "model.joblib")

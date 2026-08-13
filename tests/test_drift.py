@@ -1,6 +1,6 @@
 import numpy as np
-import pytest
-from src.monitoring.drift import psi, ks_test
+
+from src.monitoring.drift import ks_test, psi
 
 
 def test_psi_identical_distributions():
@@ -38,7 +38,7 @@ def test_ks_different():
     rng = np.random.RandomState(42)
     ref = rng.normal(50, 10, 5000)
     cur = rng.normal(70, 10, 5000)
-    stat, p = ks_test(ref, cur)
+    _stat, p = ks_test(ref, cur)
     assert p < 0.05
 
 

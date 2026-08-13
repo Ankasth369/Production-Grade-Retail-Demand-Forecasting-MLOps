@@ -2,8 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from src.config import DRIFT_FEATURES, PSI_THRESHOLD, KS_P_THRESHOLD, DRIFT_LOG_DIR
-from src.monitoring.drift import psi, ks_test
+from src.config import DRIFT_FEATURES, DRIFT_LOG_DIR, KS_P_THRESHOLD, PSI_THRESHOLD
+from src.monitoring.drift import ks_test, psi
 from src.monitoring.performance import evaluate_performance
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ def monitor_full(reference_df, current_df, y_true=None, y_pred=None):
         evidently_result = generate_drift_report(reference_df, current_df)
     except ImportError:
         logger.warning("Evidently not installed, skipping rich reports")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- Evidently is best-effort; custom PSI/KS check must still return
         logger.warning("Evidently report generation failed: %s", e)
 
     return {

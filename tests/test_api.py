@@ -31,10 +31,14 @@ def mock_registry():
         for store in [1, 2]:
             for item in [1, 2]:
                 for date in dates:
-                    serving_rows.append({
-                        "date": date, "store": store, "item": item,
-                        "sales": np.random.randint(20, 80),
-                    })
+                    serving_rows.append(
+                        {
+                            "date": date,
+                            "store": store,
+                            "item": item,
+                            "sales": np.random.randint(20, 80),
+                        }
+                    )
         mock_reg.serving_table = pd.DataFrame(serving_rows)
 
         mock_model = MagicMock()

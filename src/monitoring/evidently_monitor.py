@@ -6,7 +6,6 @@ Compatible with Evidently >= 0.7.
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pandas as pd
 from evidently import Report
@@ -37,7 +36,7 @@ def generate_drift_report(reference_df, current_df, features=None):
     drift_share = 0.0
     column_details = {}
 
-    for mid, mr in metric_results.items():
+    for mr in metric_results.values():
         if not isinstance(mr, dict):
             continue
         dn = mr.get("display_name", "")

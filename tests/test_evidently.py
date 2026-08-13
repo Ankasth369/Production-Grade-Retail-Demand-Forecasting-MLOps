@@ -2,33 +2,39 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.monitoring.evidently_monitor import generate_drift_report, EVIDENTLY_REPORTS_DIR
+from src.monitoring.evidently_monitor import (
+    generate_drift_report,
+)
 
 
 @pytest.fixture
 def reference_df():
     rng = np.random.RandomState(42)
     n = 5000
-    return pd.DataFrame({
-        "sales_lag_364": rng.normal(50, 10, n),
-        "sales_rmean_7": rng.normal(50, 5, n),
-        "sales_rmean_28": rng.normal(50, 5, n),
-        "month": rng.randint(1, 13, n).astype(float),
-        "sales_rmean_90": rng.normal(50, 5, n),
-    })
+    return pd.DataFrame(
+        {
+            "sales_lag_364": rng.normal(50, 10, n),
+            "sales_rmean_7": rng.normal(50, 5, n),
+            "sales_rmean_28": rng.normal(50, 5, n),
+            "month": rng.randint(1, 13, n).astype(float),
+            "sales_rmean_90": rng.normal(50, 5, n),
+        }
+    )
 
 
 @pytest.fixture
 def drifted_df():
     rng = np.random.RandomState(99)
     n = 5000
-    return pd.DataFrame({
-        "sales_lag_364": rng.normal(80, 15, n),
-        "sales_rmean_7": rng.normal(80, 8, n),
-        "sales_rmean_28": rng.normal(80, 8, n),
-        "month": rng.randint(1, 13, n).astype(float),
-        "sales_rmean_90": rng.normal(80, 8, n),
-    })
+    return pd.DataFrame(
+        {
+            "sales_lag_364": rng.normal(80, 15, n),
+            "sales_rmean_7": rng.normal(80, 8, n),
+            "sales_rmean_28": rng.normal(80, 8, n),
+            "month": rng.randint(1, 13, n).astype(float),
+            "sales_rmean_90": rng.normal(80, 8, n),
+        }
+    )
 
 
 def test_evidently_drift_report_no_drift(reference_df, tmp_path, monkeypatch):
@@ -40,7 +46,9 @@ def test_evidently_drift_report_no_drift(reference_df, tmp_path, monkeypatch):
     assert "report_path" in result
 
 
-def test_evidently_drift_report_with_drift(reference_df, drifted_df, tmp_path, monkeypatch):
+def test_evidently_drift_report_with_drift(
+    reference_df, drifted_df, tmp_path, monkeypatch
+):
     monkeypatch.setattr(
         "src.monitoring.evidently_monitor.EVIDENTLY_REPORTS_DIR", tmp_path
     )

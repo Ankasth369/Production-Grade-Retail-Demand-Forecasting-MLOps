@@ -7,12 +7,14 @@ from src.data.schema import validate_raw_data
 
 @pytest.fixture
 def valid_df():
-    return pd.DataFrame({
-        "date": pd.to_datetime(["2017-01-01", "2017-01-02", "2017-01-03"]),
-        "store": [1, 2, 3],
-        "item": [1, 2, 3],
-        "sales": [10, 20, 0],
-    })
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2017-01-01", "2017-01-02", "2017-01-03"]),
+            "store": [1, 2, 3],
+            "item": [1, 2, 3],
+            "sales": [10, 20, 0],
+        }
+    )
 
 
 def test_valid_data_passes(valid_df):

@@ -1,7 +1,9 @@
 import json
+from pathlib import Path
+
 import joblib
 import pandas as pd
-from pathlib import Path
+
 from src.config import ARTIFACTS_DIR
 
 

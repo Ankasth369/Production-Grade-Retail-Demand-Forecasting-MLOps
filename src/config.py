@@ -9,11 +9,25 @@ DRIFT_LOG_DIR = ARTIFACTS_DIR / "drift_logs"
 TRAIN_CSV = DATA_DIR / "train.csv"
 
 FEATURES = [
-    "store_code", "item_code", "dow", "is_weekend", "month",
-    "weekofyear", "year", "dayofyear",
-    "sales_lag_1", "sales_lag_7", "sales_lag_14", "sales_lag_28", "sales_lag_364",
-    "sales_rmean_7", "sales_rstd_7", "sales_rmean_28", "sales_rstd_28",
-    "sales_rmean_90", "sales_rstd_90",
+    "store_code",
+    "item_code",
+    "dow",
+    "is_weekend",
+    "month",
+    "weekofyear",
+    "year",
+    "dayofyear",
+    "sales_lag_1",
+    "sales_lag_7",
+    "sales_lag_14",
+    "sales_lag_28",
+    "sales_lag_364",
+    "sales_rmean_7",
+    "sales_rstd_7",
+    "sales_rmean_28",
+    "sales_rstd_28",
+    "sales_rmean_90",
+    "sales_rstd_90",
 ]
 TARGET = "sales"
 
@@ -33,8 +47,11 @@ XGBOOST_PARAMS = {
 PSI_THRESHOLD = 0.25
 KS_P_THRESHOLD = 0.05
 DRIFT_FEATURES = [
-    "sales_lag_364", "sales_rmean_7", "sales_rmean_28",
-    "month", "sales_rmean_90",
+    "sales_lag_364",
+    "sales_rmean_7",
+    "sales_rmean_28",
+    "month",
+    "sales_rmean_90",
 ]
 
 PROMOTION_TOLERANCE = 1.05

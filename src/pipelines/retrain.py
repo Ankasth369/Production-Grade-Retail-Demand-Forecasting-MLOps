@@ -25,8 +25,10 @@ def _promote_mlflow_alias(version):
 
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         client = MlflowClient()
-        client.set_registered_model_alias(MLFLOW_MODEL_NAME, MLFLOW_PRODUCTION_ALIAS, version)
-    except Exception as e:
+        client.set_registered_model_alias(
+            MLFLOW_MODEL_NAME, MLFLOW_PRODUCTION_ALIAS, version
+        )
+    except Exception as e:  # noqa: BLE001 -- MLflow is best-effort; promotion must still succeed
         logger.warning("Failed to update MLflow production alias: %s", e)
 
 
@@ -70,7 +72,7 @@ def retrain_pipeline(force=False):
 
     try:
         _, candidate_metrics = train_model(output_dir=candidate_dir)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- report any candidate training failure as a pipeline result, not a crash
         shutil.rmtree(candidate_dir, ignore_errors=True)
         return {"status": "failed", "error": str(e)}
 

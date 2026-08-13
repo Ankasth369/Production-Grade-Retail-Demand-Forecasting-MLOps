@@ -7,11 +7,10 @@ Usage:
 """
 
 import argparse
-import pandas as pd
-import numpy as np
-from pathlib import Path
 
-from src.config import TRAIN_CSV, ARTIFACTS_DIR, FEATURES, HOLDOUT_DAYS
+import pandas as pd
+
+from src.config import FEATURES, HOLDOUT_DAYS
 from src.data.loader import load_train_data
 from src.features.engineering import build_features, load_category_mappings
 from src.monitoring.monitor import monitor_once
@@ -54,7 +53,7 @@ def gradual_drift(df, items=None, daily_growth=1.002, start_date="2017-07-01"):
     dates = d.loc[mask, "date"]
     start = pd.Timestamp(start_date)
     days_elapsed = (dates - start).dt.days
-    multiplier = daily_growth ** days_elapsed
+    multiplier = daily_growth**days_elapsed
     d.loc[mask, "sales"] = (d.loc[mask, "sales"] * multiplier).astype(int)
     return d
 
@@ -88,7 +87,9 @@ def run_simulation(mode):
     print(f"\nCustom drift detected: {report['drift_detected']}")
     for feat, vals in report["feature_drift"].items():
         status = "DRIFTED" if vals["drifted"] else "OK"
-        print(f"  {feat}: PSI={vals['psi']:.4f}, KS p={vals['ks_p_value']:.6f} [{status}]")
+        print(
+            f"  {feat}: PSI={vals['psi']:.4f}, KS p={vals['ks_p_value']:.6f} [{status}]"
+        )
 
     try:
         from src.monitoring.evidently_monitor import generate_drift_report
@@ -101,8 +102,10 @@ def run_simulation(mode):
 
         report["evidently"] = ev_report
     except ImportError:
-        print("\nSkipping Evidently (not installed). Install with: pip install evidently")
-    except Exception as e:
+        print(
+            "\nSkipping Evidently (not installed). Install with: pip install evidently"
+        )
+    except Exception as e:  # noqa: BLE001 -- best-effort demo report, must not crash the simulation
         print(f"\nEvidently report failed: {e}")
 
     return report
